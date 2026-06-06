@@ -1,0 +1,19 @@
+# Data & progress files (local only)
+*.csv
+*.json
+efootball_parse_errors.txt
+
+# Proxy credentials (sensitive)
+proxies.txt
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
