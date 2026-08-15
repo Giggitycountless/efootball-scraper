@@ -6,8 +6,11 @@ eFootball Player Scraper — 单阶段列表页版（极速）
   - Perlin 噪声限速 + ThrottleGate 熔断 + 断点续爬
 Usage:
   python efootball_scraper.py
+  python efootball_scraper.py --start 701 --end 1013   # only scrape this page range
+                                                          # (for splitting work across machines)
 """
 
+import argparse
 import sys, csv, json, time, os, re, random, threading, collections
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from bs4 import BeautifulSoup
@@ -664,11 +667,12 @@ def save_progress(p: dict) -> None:
 # ─────────────────────────────────────────────
 # Main scrape loop
 # ─────────────────────────────────────────────
-def scrape(progress: dict) -> None:
-    pages_todo = [p for p in range(1, MAX_PAGES + 1) if p not in progress["pages_done"]]
-    _dash.done  = len(progress["pages_done"])
-    _dash.total = MAX_PAGES
-    _dash.set_phase(f"Scraping {MAX_PAGES} pages")
+def scrape(progress: dict, page_start: int = 1, page_end: int = None) -> None:
+    page_end = page_end or MAX_PAGES
+    pages_todo = [p for p in range(page_start, page_end + 1) if p not in progress["pages_done"]]
+    _dash.done  = len([p for p in progress["pages_done"] if page_start <= p <= page_end])
+    _dash.total = page_end - page_start + 1
+    _dash.set_phase(f"Scraping pages {page_start}-{page_end}")
 
     if not pages_todo:
         _dash.record_event("[green]All pages already done![/green]")
@@ -722,9 +726,15 @@ def main() -> None:
     # default — under heavy throttling its own probe requests can take many
     # minutes. Run it manually and update MAX_PAGES above when you suspect
     # the site has grown again.
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--start", type=int, default=1, help="first page to scrape (inclusive)")
+    parser.add_argument("--end", type=int, default=None, help="last page to scrape (inclusive, default MAX_PAGES)")
+    args = parser.parse_args()
+    page_start, page_end = args.start, args.end or MAX_PAGES
+
     progress = load_progress()
-    _dash.done = len(progress["pages_done"])
-    _dash.total = MAX_PAGES
+    _dash.done = len([p for p in progress["pages_done"] if page_start <= p <= page_end])
+    _dash.total = page_end - page_start + 1
 
     with Live(_dash.render(), refresh_per_second=4, screen=False,
               console=_console) as live:
@@ -738,7 +748,7 @@ def main() -> None:
         t = threading.Thread(target=_refresh, daemon=True)
         t.start()
         try:
-            scrape(progress)
+            scrape(progress, page_start, page_end)
         finally:
             _stop.set()
             live.update(_dash.render())

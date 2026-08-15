@@ -16,20 +16,8 @@ import os
 _DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT = os.path.join(_DIR, "efootball_players_final.csv")
 
-ALL_FIELDS = [
-    "player_id",
-    "player_name", "squad_number", "team", "league", "nationality", "region",
-    "height", "weight", "age", "foot", "max_level", "rating_grade", "position",
-    "overall_rating", "offensive_awareness", "defensive_awareness",
-    "ball_control", "dribbling", "tight_possession", "low_pass", "lofted_pass",
-    "finishing", "heading", "set_piece_taking", "curl",
-    "tackling", "aggression", "defensive_engagement",
-    "gk_awareness", "gk_catching", "gk_parrying", "gk_reflexes", "gk_reach",
-    "speed", "acceleration", "kicking_power", "jumping", "physical_contact",
-    "balance", "stamina",
-    "weak_foot_usage", "weak_foot_accuracy", "form", "injury_resistance",
-    "primary_playing_style", "player_skills", "ai_playing_styles",
-]
+sys.path.insert(0, _DIR)
+from efootball_scraper import ALL_FIELDS  # noqa: E402 — stay in sync with the scraper's schema
 
 
 def main() -> None:
