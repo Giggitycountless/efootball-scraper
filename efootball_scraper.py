@@ -57,10 +57,13 @@ _COLS_PARAM = (
     "P01,P02,P03,P04,P05,P06,P07"
 )
 
-# S01–S64 skill names (order matches pesdb filter form)
+# S01–S64 skill names, scraped directly from pesdb's own filter-form labels
+# (the previous hand-typed list omitted "Tap Trick" at S09, shifting every
+# name after it by one slot all the way through S64 — verified against
+# https://pesdb.net/efootball/ search form on 2026-08-15)
 SKILL_NAMES = [
     "Scissors Feint", "Double Touch", "Flip Flap", "Marseille Turn", "Sombrero",
-    "Chop Turn", "Cut Behind & Turn", "Scotch Move", "Sole Control",
+    "Chop Turn", "Cut Behind & Turn", "Scotch Move", "Tap Trick", "Sole Control",
     "Momentum Dribbling", "Acceleration Burst", "Magnetic Feet",
     "Heading", "Bullet Header", "Long-Range Curler", "Blitz Curler",
     "Chip Shot Control", "Knuckle Shot", "Dipping Shot", "Rising Shot",
@@ -74,7 +77,7 @@ SKILL_NAMES = [
     "Gamesmanship", "Man Marking", "Track Back", "Interception", "Blocker",
     "Aerial Superiority", "Sliding Tackle", "Long-reach Tackle", "Fortress",
     "Acrobatic Clearance", "Aerial Fort", "Shadow Hunt", "Captaincy",
-    "Attack Trigger", "Super-sub", "Fighting Spirit", "Attacking Surge",
+    "Attack Trigger", "Super-sub", "Fighting Spirit",
 ]
 
 AI_STYLE_NAMES = [
