@@ -31,7 +31,8 @@ _console = Console(legacy_windows=False, force_terminal=True)
 # ─────────────────────────────────────────────
 WORKERS      = 3
 REQ_INTERVAL = 1.5
-MAX_PAGES    = 1177
+MAX_PAGES    = 1325  # confirmed via binary search on 2026-08-15 (detect_max_pages() below
+                      # can re-verify this later when the site isn't throttling so hard)
 SAVE_EVERY   = 50
 
 BASE_URL = "https://pesdb.net/efootball/"
@@ -40,7 +41,7 @@ PROGRESS_FILE = os.path.join(_DIR, "efootball_progress_v2.json")
 OUTPUT_FILE   = os.path.join(_DIR, "efootball_players.csv")
 PROXY_FILE    = os.path.join(_DIR, "proxies.txt")
 
-# All 118 columns we request from the list view
+# All 120 columns we request from the list view
 _COLS_PARAM = (
     "id,club_number,national_number,pos,name,club_team,league,region,nationality,"
     "height,weight,age,foot,condition,max_level,overall_rating,"
@@ -49,18 +50,19 @@ _COLS_PARAM = (
     "physical_contact,balance,stamina,defensive_awareness,tackling,aggression,"
     "defensive_engagement,gk_awareness,gk_catching,gk_parrying,gk_reflexes,gk_reach,"
     "weak_foot_usage,weak_foot_accuracy,form,injury_resistance,"
-    "playing_style,"
+    "playing_style,playing_style_2,"
     "S01,S02,S03,S04,S05,S06,S07,S08,S09,S10,S11,S12,S13,S14,S15,S16,"
     "S17,S18,S19,S20,S21,S22,S23,S24,S25,S26,S27,S28,S29,S30,S31,S32,"
     "S33,S34,S35,S36,S37,S38,S39,S40,S41,S42,S43,S44,S45,S46,S47,S48,"
-    "S49,S50,S51,S52,S53,S54,S55,S56,S57,S58,S59,S60,S61,S62,S63,S64,"
+    "S49,S50,S51,S52,S53,S54,S55,S56,S57,S58,S59,S60,S61,S62,S63,S64,S65,"
     "P01,P02,P03,P04,P05,P06,P07"
 )
 
-# S01–S64 skill names, scraped directly from pesdb's own filter-form labels
-# (the previous hand-typed list omitted "Tap Trick" at S09, shifting every
-# name after it by one slot all the way through S64 — verified against
-# https://pesdb.net/efootball/ search form on 2026-08-15)
+# S01–S65 skill names, scraped directly from pesdb's own filter-form/column
+# labels (the previous hand-typed list omitted "Tap Trick" at S09, shifting
+# every name after it by one slot through S64, and never requested S65 at
+# all — "Attacking Surge" lives there, outside the S01-S64 range entirely.
+# Verified against https://pesdb.net/efootball/ search form on 2026-08-15)
 SKILL_NAMES = [
     "Scissors Feint", "Double Touch", "Flip Flap", "Marseille Turn", "Sombrero",
     "Chop Turn", "Cut Behind & Turn", "Scotch Move", "Tap Trick", "Sole Control",
@@ -77,7 +79,7 @@ SKILL_NAMES = [
     "Gamesmanship", "Man Marking", "Track Back", "Interception", "Blocker",
     "Aerial Superiority", "Sliding Tackle", "Long-reach Tackle", "Fortress",
     "Acrobatic Clearance", "Aerial Fort", "Shadow Hunt", "Captaincy",
-    "Attack Trigger", "Super-sub", "Fighting Spirit",
+    "Attack Trigger", "Super-sub", "Fighting Spirit", "Attacking Surge",
 ]
 
 AI_STYLE_NAMES = [
@@ -97,7 +99,7 @@ ALL_FIELDS = [
     "defensive_engagement", "gk_awareness", "gk_catching", "gk_parrying",
     "gk_reflexes", "gk_reach",
     "weak_foot_usage", "weak_foot_accuracy", "form", "injury_resistance",
-    "primary_playing_style", "player_skills", "ai_playing_styles",
+    "primary_playing_style", "secondary_playing_style", "player_skills", "ai_playing_styles",
 ]
 
 
@@ -545,6 +547,7 @@ _HDR_MAP = {
     "Weak Foot Accuracy": "weak_foot_accuracy",
     "Form": "form", "Injury Resistance": "injury_resistance",
     "Playing Style": "primary_playing_style",
+    "Playing Style (Def)": "secondary_playing_style",
 }
 
 
@@ -589,6 +592,51 @@ def parse_list_page(soup) -> list[dict]:
             rows.append(row)
 
     return rows
+
+
+# ─────────────────────────────────────────────
+# Auto-detect true page count (pesdb's roster keeps growing)
+# ─────────────────────────────────────────────
+def _page_has_rows(page_num: int) -> bool:
+    soup = fetch_html(f"{BASE_URL}?all=1&page={page_num}", retries=3)
+    if soup is None:
+        return False
+    tables = soup.find_all("table")
+    if not tables:
+        return False
+    return len(tables[0].find_all("tr")) > 1
+
+
+def detect_max_pages(known_good: int = MAX_PAGES, hard_cap: int = 5000) -> int:
+    """Binary-search the last page that still has player rows.
+
+    MAX_PAGES used to be a hardcoded constant, which silently went stale as
+    pesdb added new players — new pages beyond the constant were never
+    fetched, and any playing-style/skill only used by those newer players
+    looked completely absent from the CSV. Re-detecting this on every run
+    means the scraper always covers the full roster.
+    """
+    lo = known_good if _page_has_rows(known_good) else 1
+
+    hi = lo
+    step = max(lo, 1)
+    while hi < hard_cap and _page_has_rows(hi + step):
+        hi += step
+        step *= 2
+    hi = min(hi + step, hard_cap)
+    if not _page_has_rows(hi):
+        while hi > lo and not _page_has_rows(hi):
+            hi -= 1
+    else:
+        lo = hi
+
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if _page_has_rows(mid):
+            lo = mid
+        else:
+            hi = mid - 1
+    return lo
 
 
 # ─────────────────────────────────────────────
@@ -670,8 +718,13 @@ def scrape(progress: dict) -> None:
 # Entry point
 # ─────────────────────────────────────────────
 def main() -> None:
+    # Auto-detection (detect_max_pages()) is available but not called here by
+    # default — under heavy throttling its own probe requests can take many
+    # minutes. Run it manually and update MAX_PAGES above when you suspect
+    # the site has grown again.
     progress = load_progress()
     _dash.done = len(progress["pages_done"])
+    _dash.total = MAX_PAGES
 
     with Live(_dash.render(), refresh_per_second=4, screen=False,
               console=_console) as live:
