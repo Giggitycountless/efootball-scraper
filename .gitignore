@@ -1,6 +1,8 @@
 # Data & progress files (local only)
 *.csv
 *.json
+*.jsonl
+efootballdb_scrape_log.txt
 efootball_parse_errors.txt
 
 # Proxy credentials (sensitive)
